@@ -1,0 +1,171 @@
+{
+  "collectionMethod": "wmi",
+  "datapoints": [
+    {
+      "max": "",
+      "triggerInterval": 2,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Current Windows Event View ID",
+      "interpretMethod": "none",
+      "interpretExpr": "190",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "Gk-8YFzuSZ-zt2i6PHxC-g",
+      "min": "",
+      "alertBody": "The Veeam Agent for Windows on ##HOSTNAME## is experiencing ##ALERTTYPE## ##LEVEL## alert. No Data is able to be collected. The alert began at ##START##\n\nSee the alert here: ##ALERTDETAILURL##\n\nEmerge SOP: https://emerge.itglue.com/3247188/docs/13824072",
+      "name": "JobEvent_EventCode",
+      "noData": "Trigger error alert",
+      "config": {
+        "wmiClassAttr": "EventCode"
+      }
+    },
+    {
+      "max": "1",
+      "triggerInterval": 0,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Flag is Event Type is Warning or Error level",
+      "interpretMethod": "textmatch",
+      "threshold": "= 1",
+      "interpretExpr": "Error|Warning",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "Q6jEX7pdQSe2pwpHqZ-Zew",
+      "min": "0",
+      "name": "JobEvent_Level",
+      "noData": "Do not trigger an alert",
+      "config": {
+        "wmiClassAttr": "TYPE"
+      }
+    },
+    {
+      "max": "",
+      "triggerInterval": 0,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "EventType:\n1: Error\n2: Warning\n3: Information\n4: Security Audit Success\n5: Security Audit Failure",
+      "interpretMethod": "none",
+      "interpretExpr": "r\"(Error|Warning)\"",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "vjpx1j6OT2GynwqMMbNIrA",
+      "min": "",
+      "name": "JobEvent_Type",
+      "noData": "Do not trigger an alert",
+      "config": {
+        "wmiClassAttr": "EVENTTYPE"
+      }
+    },
+    {
+      "max": "1",
+      "triggerInterval": 1,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Flag if Event ID is 190 or greater than 36000, and JobEvent_Level flag is present",
+      "interpretMethod": "expression",
+      "threshold": "= 1 1",
+      "interpretExpr": "if(&&(||(eq(JobEvent_EventCode,190),gt(JobEvent_EventCode,36000)),eq(JobEvent_Level,1)), 1, 0)",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "7xysd1pQRUqq5jMJ9iJhhw",
+      "min": "0",
+      "alertBody": "The Veeam Agent for Windows on ##HOSTNAME## is experiencing ##ALERTTYPE## ##LEVEL## alert.\nThe alert began at ##START##\n\nEmerge SOP: https://emerge.itglue.com/3247188/docs/13824072",
+      "name": "JobResult_Failure",
+      "noData": "Do not trigger an alert",
+      "config": {
+        "wmiClassAttr": ""
+      }
+    },
+    {
+      "max": "1",
+      "triggerInterval": 1,
+      "dataType": 7,
+      "maxDigits": 4,
+      "interpretMethod": "expression",
+      "threshold": "> 0",
+      "interpretExpr": "if(&&(eq(JobEvent_Level,2),eq(JobEvent_EventCode,191)), 1, 0)",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "vI9d4vEsR-CNQae5Gz_Nxg",
+      "min": "0",
+      "name": "JobResult_Retry",
+      "noData": "Trigger warning alert",
+      "config": {
+        "wmiClassAttr": ""
+      }
+    }
+  ],
+  "searchKeywords": "",
+  "displayedAs": "Veeam Agent monitor",
+  "description": "Polls Windows Event Viewer records for \"Veeam Agent\" Application through WMI\nhttps://helpcenter.veeam.com/docs/agentforwindows/userguide/appendix_events.html?ver=60",
+  "appliesTo": "isWindows() && EMS_Veeam_WinAgent()",
+  "collectionAttrs": {
+    "collectionType": "query",
+    "namespace": "CIMV2",
+    "indexProperty": "Logfile",
+    "class": "Win32_NTLogEvent",
+    "indexValue": "Veeam Agent"
+  },
+  "type": 0,
+  "technicalNotes": "",
+  "useWildValueAsUniqueIdentifier": false,
+  "version": 1702047397,
+  "registryMetadata": {
+    "currentUuid": "Q_CGA4TdQamvLwxvMuR6yg",
+    "originalUuid": "Q_CGA4TdQamvLwxvMuR6yg",
+    "locatorId": "",
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "registryVersion": "1.1.0",
+    "checksum": "156f501e00457bf3948e92664c86664a",
+    "namespace": "",
+    "registryId": ""
+  },
+  "multiInstance": false,
+  "graphs": [
+    {
+      "datapoints": [
+        {
+          "datapointName": "JobResult_Failure",
+          "consolidationFn": "max",
+          "name": "JobResult_Failure"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1week",
+      "max": 2,
+      "name": "Job Failures",
+      "verticalLabel": "Code",
+      "displayPriority": 1,
+      "scale1024": false,
+      "title": "Job Failures",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "JobResult_Failure",
+          "color": "silver",
+          "legend": "JobResult_Failure",
+          "isVirtual": false,
+          "type": "line"
+        }
+      ]
+    }
+  ],
+  "integrationMetadata": {
+    "publishedAtMS": 1701093582790,
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "namespace": "emergeits",
+    "registryVersion": "1.1.0",
+    "name": "",
+    "checksum": "f7178b56277a79b0610c886730032b5e",
+    "registryId": "2ec13087-1652-44d3-b571-8ca3f736c930",
+    "isPrivate": false,
+    "locator": "2RN37E",
+    "lineageId": "Q_CGA4TdQamvLwxvMuR6yg",
+    "status": "COMMUNITY"
+  },
+  "name": "Veeam Agent WMI monitor",
+  "collectionInterval": "25m",
+  "dataSourceType": 1,
+  "group": ""
+}

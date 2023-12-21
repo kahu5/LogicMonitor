@@ -1,0 +1,56 @@
+{
+  "severity": "warn",
+  "clearAfterMin": 60,
+  "collectionMethod": "wineventlog",
+  "doMapping": false,
+  "searchKeywords": "os,microsoft,windows",
+  "description": "Windows System Log Informational Event ID",
+  "appliesTo": "isWindows() && EMS_Veeam_WinAgent()",
+  "collectionAttrs": [],
+  "filters": [
+    {
+      "op": "In",
+      "originId": "Rcz-DlIDTBee8lJ2ATFfow",
+      "comment": "110\nBackup Job Started\n\n115\nBackup Job Resumed\n\n190\nBackup Job Finished\n\n191\nBackup Job Retry\n\n10010\nRestore point has been created\n\n36001\nAttempting to register a Service Principal Name \n\n36003\nFailed to register Service Principal Name",
+      "type": "EVENTID",
+      "value": "110|115|190|191|10010|36001|36003"
+    },
+    {
+      "op": "Equal",
+      "originId": "vwTTgP7BQOC-aQ0k4tg0PA",
+      "type": "LOGNAME",
+      "value": "Veeam Agent"
+    }
+  ],
+  "type": 1,
+  "technicalNotes": "",
+  "version": 1701089067,
+  "registryMetadata": {
+    "currentUuid": "iRjkiHVNRnq3jIkkzXhL0A",
+    "originalUuid": "iRjkiHVNRnq3jIkkzXhL0A",
+    "locatorId": "",
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "registryVersion": "1.0.0",
+    "checksum": "793cbcb50a329616845ccbdc069437f3",
+    "namespace": "",
+    "registryId": ""
+  },
+  "alertBody": "Host: ##HOST##\nEventsource: ##EVENTSOURCE##\nWindows Event ID:  ##EVENTCODE##\nMessage: ##MESSAGE##\nDetected on: ##START##",
+  "integrationMetadata": {
+    "publishedAtMS": 1701050412980,
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "namespace": "emergeits",
+    "registryVersion": "1.0.0",
+    "name": "",
+    "checksum": "96e4f6c85ff6c637512461e2fa1afce8",
+    "registryId": "066ec57e-fd5a-49eb-be07-d058833355fc",
+    "isPrivate": true,
+    "locator": "HZX3L4",
+    "lineageId": "iRjkiHVNRnq3jIkkzXhL0A",
+    "status": "COMMUNITY"
+  },
+  "name": "Veeam Agent Events",
+  "alertSubject": "Veeam Windows Agent - Backup Failure",
+  "clearAfterAck": false,
+  "group": ""
+}

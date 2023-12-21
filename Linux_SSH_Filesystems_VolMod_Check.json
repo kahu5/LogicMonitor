@@ -1,0 +1,240 @@
+{
+  "collectionMethod": "batchscript",
+  "datapoints": [
+    {
+      "max": "",
+      "triggerInterval": 1,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Modified date of folder difference in seconds with current time",
+      "interpretMethod": "namevalue",
+      "threshold": ">= 24",
+      "interpretExpr": "##WILDVALUE##.modified_diff",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "vJbxWsJARTmz0-w5RRbClA",
+      "useValue": "output",
+      "min": "0",
+      "alertBody": "The volume ##INSTANCE## on ##HOST## has exceeded ##VALUE## hours, placing the processes into ##LEVEL## state.\n\nThis started at ##START##, -- or ##DURATION## ago.\n\nPlease assign to a Voice Engineer for resolution.",
+      "name": "Modified_Diff_hrs",
+      "alertSubject": "Voice Backup Alert",
+      "noData": "Do not trigger an alert"
+    },
+    {
+      "max": "",
+      "triggerInterval": 3,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Percentage of the filesystem that has been used.",
+      "interpretMethod": "namevalue",
+      "threshold": "> 90",
+      "interpretExpr": "##WILDVALUE##.percent_used",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "_tZNIh8ESRisAI-z_pJq3g",
+      "useValue": "output",
+      "min": "0",
+      "alertBody": "Linux filesystem volume ##INSTANCE## on ##HOST## is now ##VALUE## % full, placing the filesystem into ##LEVEL## state.\n\nThis started at ##START##, -- or ##DURATION## ago.\n\nPlease assign to a Voice Engineer for resolution. Emerge SOP for resolution:\nhttps://emerge.itglue.com/3247188/docs/12321359",
+      "name": "PercentUsed",
+      "noData": "Do not trigger an alert"
+    },
+    {
+      "max": "",
+      "triggerInterval": 0,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Percentage of total inodes utilized.",
+      "interpretMethod": "namevalue",
+      "interpretExpr": "##WILDVALUE##.inodes_percent_used",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "Ly_oL2-USX-BdU4iY7FnVg",
+      "useValue": "output",
+      "min": "0",
+      "name": "inodes_percent_used",
+      "noData": "Do not trigger an alert"
+    },
+    {
+      "max": "",
+      "triggerInterval": 0,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Number of used inodes.",
+      "interpretMethod": "namevalue",
+      "interpretExpr": "##WILDVALUE##.inodes_used",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "QMwqNCQdTqiV7KGGa08n0Q",
+      "useValue": "output",
+      "min": "0",
+      "name": "inodes_used",
+      "noData": "Do not trigger an alert"
+    }
+  ],
+  "searchKeywords": "linux,ssh,filesystem",
+  "displayedAs": "Filesystems VolMod Check",
+  "description": "Monitors the Linux filesystem utilization metrics.",
+  "appliesTo": "system.displayname =~ \"voicebackup\"",
+  "activeDiscovery": {
+    "deleteInactiveInstances": false,
+    "groupMethod": "none",
+    "discoveryMethod": "ad_script",
+    "autoDeleteInstances": false,
+    "disableDiscoveredInstances": false,
+    "filters": [],
+    "params": {
+      "type": "groovy",
+      "content": "/*******************************************************************************\n *  © 2007-2021 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\n\nimport com.jcraft.jsch.JSch\nimport com.santaba.agent.util.Settings\n\nhost = hostProps.get(\"system.hostname\")\nuser = hostProps.get(\"ssh.user\")\npass = hostProps.get(\"ssh.pass\")\nport = hostProps.get(\"ssh.port\")?.toInteger() ?: 22\ncert = hostProps.get(\"ssh.cert\") ?: '~/.ssh/id_rsa'\ntimeout = 15000 // timeout in milliseconds\n\ndef azureHost = hostProps.get(\"system.azure.privateIpAddress\")\nif (azureHost && hostProps.get(\"auto.network.resolves\") == \"false\") host = azureHost\n\n// To run in debug mode, set to true\ndebug = false\n\n// Command to run\ndef command = \"`which df` -P\"\n\n// Regex pattern to match\ndef pattern = ~/\\s?(\\S+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\-|\\d+)%\\s+(.*)/\n\n// Types of filesystems to ignore\ndef filtered_filesystems = [\"none\", \"udev\", \"tmpfs\", \"devtmpfs\"]\n\ndef command_output = getCommandOutput(command)\nLMDebugPrint(\"Raw output:\\n${command_output}\\n----------\")\n\ncommand_output.eachLine { line ->\n    def matcher = pattern.matcher(line);\n\n    if (matcher) {\n        // get FS and mountpoint name\n        def filesystem = matcher[0][1];\n        def mountpoint = matcher[0][6];\n\n        // Filter out filesystems that should be excluded\n        if (!filtered_filesystems.contains(filesystem) && !filesystem.contains(\"dev/loop\")) {\n            def wildvalue = filesystem.replaceAll(/[:|\\\\|\\s|=]+/,\"_\")\n            def date_command = (\"stat -c '%y-%m-%d %H:%M' ${mountpoint} | cut -d'.' -f1\");\n            def date_output = getCommandOutput (date_command).split(\" \");\n            //println \"${wildvalue}##${wildvalue}##Mounted: ${mountpoint}###Mountpoint: ${mountpoint}####auto.FilesystemDateModified= ${date_output[0]}\"\n            println \"${wildvalue}##${wildvalue}##Mounted: ${mountpoint}####auto.FilesystemModified= ${date_output[0]}\"\n        }\n    }\n    else {\n        LMDebugPrint(\"The following line did not match:\\n${line}\\n----------\\n\")\n    }\n}\n\nreturn 0\n\n\n/**\n * Helper function to print out debug messages for troubleshooting purposes.\n * @param message\n * @param debug\n */\ndef LMDebugPrint(message) {\n    if (debug) {\n        println(message.toString())\n    }\n}\n\n\n/**\n * Helper function for SSH connection and command passing\n * uses globally set host props:\n *   host, user, pass, port, cert\n * @param input_command\n */\ndef getCommandOutput(String input_command) {\n    try {\n        // instantiate JSCH object.\n        jsch = new JSch()\n\n        LMDebugPrint(\"***** Attempting SSH Connection *****\")\n        LMDebugPrint(\"\\tUser: ${user}\\n\\tConnecting over port ${port}\")\n\n        // do we have an user and no pass ?\n        if (user && !pass) {\n            LMDebugPrint(\"\\tUser set, but no password. Adding cert for connection.\")\n            // Yes, so lets try connecting via cert.\n            jsch.addIdentity(cert)\n        }\n\n        // create session.\n        session = jsch.getSession(user, host, port)\n\n        // given we are running non-interactively, we will automatically accept new host keys.\n        session.setConfig(\"StrictHostKeyChecking\", \"no\");\n        String authMethod = Settings.getSetting(Settings.SSH_PREFEREDAUTHENTICATION, Settings.DEFAULT_SSH_PREFEREDAUTHENTICATION);\n        session.setConfig(\"PreferredAuthentications\", authMethod);\n\n        // set session timeout, in milliseconds.\n        session.setTimeout(timeout)\n\n        // is host configured with a user & password?\n        if (pass) {\n            LMDebugPrint(\"\\tConnecting with password set in device properties\")\n            // set password.\n            session.setPassword(pass);\n        }\n\n        // connect\n        session.connect()\n\n        // execute command.\n        LMDebugPrint(\"\\tExecuting command: ${input_command}\")\n        channel = session.openChannel(\"exec\")\n        channel.setCommand(input_command)\n\n        // collect command output.\n        LMDebugPrint(\"\\tRetrieving output...\\n\")\n        def commandOutput = channel.getInputStream()\n        channel.connect()\n\n        def output = commandOutput.text;\n        if (output == \"\") {\n            LMDebugPrint(\"\\tEmpty results\\n\")\n        }\n\n        // disconnect\n        channel.disconnect()\n\n        return output\n    }\n    // ensure we disconnect the session.\n    finally {\n        session.disconnect()\n    }\n}"
+    },
+    "discoveryInterval": "60m",
+    "enabled": true
+  },
+  "collectionAttrs": {
+    "type": "groovy",
+    "content": "/*******************************************************************************\n *  © 2007-2021 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\n\nimport com.jcraft.jsch.JSch\nimport com.santaba.agent.util.Settings\nimport java.util.Date\nimport groovy.time.TimeCategory\n\nhost = hostProps.get(\"system.hostname\")\nuser = hostProps.get(\"ssh.user\")\npass = hostProps.get(\"ssh.pass\")\nport = hostProps.get(\"ssh.port\")?.toInteger() ?: 22\ncert = hostProps.get(\"ssh.cert\") ?: '~/.ssh/id_rsa'\ntimeout = 15000 // timeout in milliseconds\n\ndef azureHost = hostProps.get(\"system.azure.privateIpAddress\")\nif (azureHost && hostProps.get(\"auto.network.resolves\") == \"false\") host = azureHost\n\n// To run in debug mode, set to true\ndebug = false\n\n// Commands to run\ndef commands_list = ['`which df` -P', '`which df` -i']\n\n// Establish expected pattern of output\n// (?m) - Allow for multiline matches for inode output line split\ndef pattern = ~/(?m)\\s?(\\S+)\\n?\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\-|\\d+)%\\s+(.*)/\n\n// Types of filesystems to ignore\ndef filtered_filesystems = [\"none\", \"udev\", \"tmpfs\", \"devtmpfs\"]\n\ncommands_list.each { command ->\n    def command_output = getCommandOutput(command)\n    LMDebugPrint(\"Raw output:\\n${command_output}\\n----------\")\n\n    // Perform multiline match on full output \n    def matcher = pattern.matcher(command_output);\n\n    // Process each match to write data\n    matcher.each { match ->\n        def filesystem = match[1]\n        def filesystemMount = match[6]\n\n        // Filter out filesystems that should be excluded\n        if (!filtered_filesystems.contains(filesystem) && !filesystem.contains(\"dev/loop\")) {\n            def wildvalue = filesystem.replaceAll(/[:|\\\\|\\s|=]+/, \"_\")\n            \n            if (filesystemMount.contains('backups')){\n                def date_com = (\"expr `date +%s` - `stat -c %Y ${filesystemMount}`\");\n                date_diff_output = getCommandOutput (date_com);\n                date_diff_output = date_diff_output.toLong() / 3600\n            } else {\n                date_diff_output = null;\n            }\n                        \n            if (command.contains('-P')) {\n                println wildvalue + \".totalbytes=\" + (match[2].toLong() * 1024);\n                println wildvalue + \".used=\" + (match[3].toLong() * 1024);\n                println wildvalue + \".available=\" + (match[4].toLong() * 1024);\n                println wildvalue + \".percent_used=\" + match[5];\n                println wildvalue + \".modified_diff=\" + date_diff_output;\n            } else if (command.contains('-i')) {\n                println wildvalue + \".inodes=\" + match[2]\n                println wildvalue + \".inodes_used=\" + match[3]\n                println wildvalue + \".inodes_free=\" + match[4]\n                println wildvalue + \".inodes_percent_used=\" + match[5]\n                println wildvalue + \".modified_diff=\" + date_diff_output;\n            }\n        }\n    }\n}\n\nreturn 0\n\n/**\n * Helper function to print out debug messages for troubleshooting purposes.\n * @param message\n * @param debug\n */\ndef LMDebugPrint(message) {\n    if (debug) {\n        println(message.toString())\n    }\n}\n\n\n/**\n * Helper function for SSH connection and command passing\n * uses globally set host props:\n *   host, user, pass, port, cert\n * @param input_command\n */\ndef getCommandOutput(String input_command) {\n    try {\n        // instantiate JSCH object.\n        jsch = new JSch()\n\n        LMDebugPrint(\"***** Attempting SSH Connection *****\")\n        LMDebugPrint(\"\\tUser: ${user}\\n\\tConnecting over port ${port}\")\n\n        // do we have an user and no pass ?\n        if (user && !pass) {\n            LMDebugPrint(\"\\tUser set, but no password. Adding cert for connection.\")\n            // Yes, so lets try connecting via cert.\n            jsch.addIdentity(cert)\n        }\n\n        // create session.\n        session = jsch.getSession(user, host, port)\n\n        // given we are running non-interactively, we will automatically accept new host keys.\n        session.setConfig(\"StrictHostKeyChecking\", \"no\");\n        String authMethod = Settings.getSetting(Settings.SSH_PREFEREDAUTHENTICATION, Settings.DEFAULT_SSH_PREFEREDAUTHENTICATION);\n        session.setConfig(\"PreferredAuthentications\", authMethod);\n\n        // set session timeout, in milliseconds.\n        session.setTimeout(timeout)\n\n        // is host configured with a user & password?\n        if (pass) {\n            LMDebugPrint(\"\\tConnecting with password set in device properties\")\n            // set password.\n            session.setPassword(pass);\n        }\n\n        // connect\n        session.connect()\n\n        // execute command.\n        LMDebugPrint(\"\\tExecuting command: ${input_command}\")\n        channel = session.openChannel(\"exec\")\n        channel.setCommand(input_command)\n\n        // collect command output.\n        LMDebugPrint(\"\\tRetrieving output...\\n\")\n        def commandOutput = channel.getInputStream()\n        channel.connect()\n\n        def output = commandOutput.text;\n        if (output == \"\") {\n            LMDebugPrint(\"\\tEmpty results\\n\")\n        }\n\n        // disconnect\n        channel.disconnect()\n\n        return output\n    }\n    // ensure we disconnect the session.\n    finally {\n        session.disconnect()\n    }\n}"
+  },
+  "type": 0,
+  "technicalNotes": "Requires property source addCategory_Linux_SSH\n\nUses the \"df\" command to get data about mounted filesystem usage.\n\n\"df\" takes the filesystem reservation (usually 5%) into account for you.\n\n- Support: https://www.logicmonitor.com/support/monitoring/os-virtualization/linux-via-ssh-monitoring",
+  "useWildValueAsUniqueIdentifier": false,
+  "version": 1693765827,
+  "registryMetadata": {
+    "currentUuid": "iIdX_U6TQfCOOk1ZpDSvDw",
+    "originalUuid": "iIdX_U6TQfCOOk1ZpDSvDw",
+    "locatorId": "",
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "registryVersion": "1.0.0",
+    "checksum": "4102b4d88fb9885030aeaec0fefa28ca",
+    "namespace": "",
+    "registryId": ""
+  },
+  "multiInstance": true,
+  "graphs": [
+    {
+      "datapoints": [],
+      "min": 0,
+      "timeScale": "1day",
+      "name": "Filesystem Storage",
+      "verticalLabel": "bytes",
+      "displayPriority": 2,
+      "scale1024": true,
+      "title": "Filesystem Storage",
+      "rigid": false,
+      "lines": []
+    },
+    {
+      "datapoints": [
+        {
+          "datapointName": "PercentUsed",
+          "consolidationFn": "average",
+          "name": "PercentUsed"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1day",
+      "max": 100,
+      "name": "Filesystem Utilization",
+      "verticalLabel": "%",
+      "displayPriority": 1,
+      "scale1024": false,
+      "title": "Filesystem Utilization",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "PercentUsed",
+          "color": "orange2",
+          "legend": "Used",
+          "isVirtual": false,
+          "type": "area"
+        }
+      ]
+    },
+    {
+      "datapoints": [
+        {
+          "datapointName": "inodes_used",
+          "consolidationFn": "average",
+          "name": "inodes_used"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1day",
+      "name": "Inode Details",
+      "verticalLabel": "count",
+      "displayPriority": 4,
+      "scale1024": false,
+      "title": "Inode Details",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "inodes_used",
+          "color": "orange",
+          "legend": "Used",
+          "isVirtual": false,
+          "type": "stack"
+        }
+      ]
+    },
+    {
+      "datapoints": [
+        {
+          "datapointName": "inodes_percent_used",
+          "consolidationFn": "average",
+          "name": "inodes_percent_used"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1day",
+      "max": 100,
+      "name": "Inode Utilization",
+      "verticalLabel": "%",
+      "displayPriority": 3,
+      "scale1024": false,
+      "title": "Inode Utilization",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "inodes_percent_used",
+          "color": "fuchsia",
+          "legend": "Utilized",
+          "isVirtual": false,
+          "type": "area"
+        }
+      ]
+    }
+  ],
+  "name": "Linux_SSH_Filesystems_VolMod_Check",
+  "collectionInterval": "30m",
+  "dataSourceType": 1,
+  "group": "Backup",
+  "overviewGraphs": [
+    {
+      "datapoints": [
+        {
+          "datapointName": "PercentUsed",
+          "aggregateMethod": "sum",
+          "consolidationFn": "average",
+          "name": "PercentUsed"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1day",
+      "max": 100,
+      "name": "Top 10 Filesystems by Storage Utilization",
+      "verticalLabel": "%",
+      "displayPriority": 1,
+      "aggregated": false,
+      "scale1024": false,
+      "title": "Top 10 Filesystems by Storage Utilization",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "PercentUsed",
+          "color": "silver",
+          "legend": "##INSTANCE##",
+          "isVirtual": false,
+          "type": "line"
+        }
+      ]
+    }
+  ]
+}

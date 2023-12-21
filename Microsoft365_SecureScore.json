@@ -1,0 +1,100 @@
+{
+  "collectionMethod": "script",
+  "datapoints": [
+    {
+      "max": "",
+      "triggerInterval": 0,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "Number of team messages.",
+      "interpretMethod": "namevalue",
+      "interpretExpr": "secureScore",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "Prs7mOStSlmF2A5Vn7oReQ",
+      "useValue": "output",
+      "min": "",
+      "name": "secureScore",
+      "noData": "Do not trigger an alert"
+    }
+  ],
+  "searchKeywords": "o365,microsoft,office 365",
+  "displayedAs": "Microsoft365: SecureScore",
+  "description": "Monitors the SecureScore",
+  "appliesTo": "/*copied from Office365 Teams User Activity*/\n\n/*hasCategory(\"MS365test\") */",
+  "collectionAttrs": {
+    "type": "powershell",
+    "content": "# Application (client) ID, tenant ID and secret\r\n$clientId = @'\r\n##saas.userId##\r\n'@\r\n$clientSecret = @'\r\n##saas.secretKey##\r\n'@\r\n$tenantId = @'\r\n##saas.tenantId##\r\n'@\r\n\r\n## If you have running scripts that don't have a certificate, run this command once to disable that level of security\r\n set-executionpolicy -executionpolicy bypass -scope currentuser -force\r\n\r\nwrite-host \"Script started`n\"\r\n\r\n## Script from - https://www.lee-ford.co.uk/getting-started-with-microsoft-graph-with-powershell/\r\n\r\n# Azure AD OAuth Application Token for Graph API\r\n# Get OAuth token for a AAD Application (returned as $token)\r\n\r\n# Construct URI\r\n$uri = \"https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token\"\r\n\r\n# Construct Body\r\n$body = @{\r\n    client_id     = $clientId\r\n    scope         = \"https://graph.microsoft.com/.default\"\r\n    client_secret = $clientSecret\r\n    grant_type    = \"client_credentials\"\r\n}\r\n\r\nwrite-host \"Get OAuth 2.0 Token\"\r\n# Get OAuth 2.0 Token\r\n$tokenRequest = Invoke-WebRequest -Method Post -Uri $uri -ContentType \"application/x-www-form-urlencoded\" -Body $body -UseBasicParsing\r\n\r\n# Access Token\r\n$token = ($tokenRequest.Content | ConvertFrom-Json).access_token\r\nwrite-host $token\r\n# Graph API call in PowerShell using obtained OAuth token (see other gists for more details)\r\n\r\n# Specify the URI to call and method\r\n$uri = \"https://graph.microsoft.com/beta/security/securescores?$top=1\"\r\n$method = \"GET\"\r\n\r\nwrite-host \"Run Graph API Query\"\r\n# Run Graph API query \r\n$query = Invoke-WebRequest -Method $method -Uri $uri -ContentType \"application/json\" -Headers @{Authorization = \"Bearer $token\" } -ErrorAction Stop -UseBasicParsing\r\n\r\nwrite-host \"Parse results\"\r\n$ConvertedOutput = $query | Select-Object -ExpandProperty content | ConvertFrom-Json\r\n\r\nwrite-host $ConvertedOutput\r\n\r\nwrite-host \"Display results`n\"\r\nforeach ($control in $convertedoutput) {\r\n    $secureScore = control.value\r\n    $names = $control.value.controlscores.description\r\n    $item = 0\r\n    foreach ($name in $names) {\r\n        $item++\r\n        write-host  \"`n*** Item\", $item, \"***\"\r\n        write-host $name        \r\n    }\r\n}\r\n\r\nwrite-host \"`nScript Completed`n\"\r\n\r\nWrite-Host \"secureScore=$($secureScore)\""
+  },
+  "type": 0,
+  "technicalNotes": "Requires Application Registration & Credentials set.\n - 'office365.clientid'\n - 'office365.clientsecret.pass'\n - 'office365.tenantid'\n - 'office365.tenantname'",
+  "useWildValueAsUniqueIdentifier": false,
+  "version": 1681934190,
+  "registryMetadata": {
+    "currentUuid": "Ds4HUc7VQyC73Q6YI7bJ2Q",
+    "originalUuid": "Ds4HUc7VQyC73Q6YI7bJ2Q",
+    "locatorId": "",
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "registryVersion": "1.0.0",
+    "checksum": "b289aa05931ed916135f4cf51dfab0f2",
+    "namespace": "",
+    "registryId": ""
+  },
+  "multiInstance": false,
+  "graphs": [
+    {
+      "datapoints": [],
+      "min": 0,
+      "timeScale": "1day",
+      "name": "Calls",
+      "verticalLabel": "count",
+      "displayPriority": 1,
+      "scale1024": false,
+      "title": "Calls",
+      "rigid": false,
+      "lines": []
+    },
+    {
+      "datapoints": [],
+      "min": 0,
+      "timeScale": "1day",
+      "name": "Meetings",
+      "verticalLabel": "count",
+      "displayPriority": 2,
+      "scale1024": false,
+      "title": "Meetings",
+      "rigid": false,
+      "lines": []
+    },
+    {
+      "datapoints": [
+        {
+          "datapointName": "secureScore",
+          "consolidationFn": "average",
+          "name": "teamMessages"
+        }
+      ],
+      "min": 0,
+      "timeScale": "1day",
+      "name": "Messages",
+      "verticalLabel": "count",
+      "displayPriority": 3,
+      "scale1024": false,
+      "title": "Messages",
+      "rigid": false,
+      "lines": [
+        {
+          "datapointName": "teamMessages",
+          "color": "fuchsia",
+          "legend": "Team Messages",
+          "isVirtual": false,
+          "type": "stack"
+        }
+      ]
+    }
+  ],
+  "name": "Microsoft365_SecureScore",
+  "collectionInterval": "12h",
+  "dataSourceType": 1,
+  "group": "Emerge Testing"
+}

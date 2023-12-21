@@ -1,0 +1,96 @@
+{
+  "collectionMethod": "batchscript",
+  "datapoints": [
+    {
+      "max": "",
+      "triggerInterval": 1,
+      "dataType": 7,
+      "maxDigits": 4,
+      "description": "TEST - Modified date difference in hours of folders within volume",
+      "interpretMethod": "namevalue",
+      "threshold": ">= 20 24",
+      "interpretExpr": "##WILDVALUE##.modified_dirs",
+      "type": "gauge",
+      "clearInterval": 0,
+      "originId": "l7uomgWqShiJC-MKXpRbDg",
+      "useValue": "output",
+      "min": "0",
+      "alertBody": "The volume ##INSTANCE## on ##HOST## has exceeded ##VALUE## hours, placing the processes into ##LEVEL## state.\n\nThis started at ##START##, -- or ##DURATION## ago.\n\nPlease assign to a Voice Engineer for resolution.",
+      "name": "Dirs_ModHrs",
+      "alertSubject": "Voice Backup Alert",
+      "noData": "Do not trigger an alert"
+    }
+  ],
+  "searchKeywords": "linux,ssh,filesystem",
+  "displayedAs": "Filesystems DirMod Check",
+  "description": "Monitors the Linux filesystem for the latest directory changes per volume",
+  "appliesTo": "system.displayname =~ \"voicebackup\"",
+  "activeDiscovery": {
+    "deleteInactiveInstances": false,
+    "groupMethod": "none",
+    "discoveryMethod": "ad_script",
+    "autoDeleteInstances": false,
+    "disableDiscoveredInstances": false,
+    "filters": [],
+    "params": {
+      "type": "groovy",
+      "content": "/*******************************************************************************\n *  © 2007-2021 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\n\nimport com.jcraft.jsch.JSch\nimport com.santaba.agent.util.Settings\n\nhost = hostProps.get(\"system.hostname\")\nuser = hostProps.get(\"ssh.user\")\npass = hostProps.get(\"ssh.pass\")\nport = hostProps.get(\"ssh.port\")?.toInteger() ?: 22\ncert = hostProps.get(\"ssh.cert\") ?: '~/.ssh/id_rsa'\ntimeout = 15000 // timeout in milliseconds\n\ndef azureHost = hostProps.get(\"system.azure.privateIpAddress\")\nif (azureHost && hostProps.get(\"auto.network.resolves\") == \"false\") host = azureHost\n\n// To run in debug mode, set to true\ndebug = false\n\n// Command to run\ndef command = \"`which df` -P\"\n\n// Regex pattern to match\ndef pattern = ~/\\s?(\\S+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\-|\\d+)%\\s+(.*)/\n\n// Types of filesystems to ignore\ndef filtered_filesystems = [\"none\", \"udev\", \"tmpfs\", \"devtmpfs\"]\n\ndef command_output = getCommandOutput(command)\nLMDebugPrint(\"Raw output:\\n${command_output}\\n----------\")\n\ncommand_output.eachLine { line ->\n    def matcher = pattern.matcher(line);\n\n    if (matcher) {\n        // get FS and mountpoint name\n        def filesystem = matcher[0][1];\n        def mountpoint = matcher[0][6];\n\n        // Filter out filesystems that should be excluded\n        if (!filtered_filesystems.contains(filesystem) && !filesystem.contains(\"dev/loop\")) {\n            def wildvalue = filesystem.replaceAll(/[:|\\\\|\\s|=]+/,\"_\")\n            def date_command = (\"stat -c '%y-%m-%d %H:%M' ${mountpoint} | cut -d'.' -f1\");\n            def date_output = getCommandOutput (date_command).split(\" \");\n            //println \"${wildvalue}##${wildvalue}##Mounted: ${mountpoint}###Mountpoint: ${mountpoint}####auto.FilesystemDateModified= ${date_output[0]}\"\n            println \"${wildvalue}##${wildvalue}##Mounted: ${mountpoint}####auto.FilesystemModifiedDate= ${date_output[0]}\"\n            println \"${wildvalue}##${wildvalue}##Mounted: ${mountpoint}####auto.FilesystemModifiedTime= ${date_output[1]}\"\n        }\n    }\n    else {\n        LMDebugPrint(\"The following line did not match:\\n${line}\\n----------\\n\")\n    }\n}\n\nreturn 0\n\n\n/**\n * Helper function to print out debug messages for troubleshooting purposes.\n * @param message\n * @param debug\n */\ndef LMDebugPrint(message) {\n    if (debug) {\n        println(message.toString())\n    }\n}\n\n\n/**\n * Helper function for SSH connection and command passing\n * uses globally set host props:\n *   host, user, pass, port, cert\n * @param input_command\n */\ndef getCommandOutput(String input_command) {\n    try {\n        // instantiate JSCH object.\n        jsch = new JSch()\n\n        LMDebugPrint(\"***** Attempting SSH Connection *****\")\n        LMDebugPrint(\"\\tUser: ${user}\\n\\tConnecting over port ${port}\")\n\n        // do we have an user and no pass ?\n        if (user && !pass) {\n            LMDebugPrint(\"\\tUser set, but no password. Adding cert for connection.\")\n            // Yes, so lets try connecting via cert.\n            jsch.addIdentity(cert)\n        }\n\n        // create session.\n        session = jsch.getSession(user, host, port)\n\n        // given we are running non-interactively, we will automatically accept new host keys.\n        session.setConfig(\"StrictHostKeyChecking\", \"no\");\n        String authMethod = Settings.getSetting(Settings.SSH_PREFEREDAUTHENTICATION, Settings.DEFAULT_SSH_PREFEREDAUTHENTICATION);\n        session.setConfig(\"PreferredAuthentications\", authMethod);\n\n        // set session timeout, in milliseconds.\n        session.setTimeout(timeout)\n\n        // is host configured with a user & password?\n        if (pass) {\n            LMDebugPrint(\"\\tConnecting with password set in device properties\")\n            // set password.\n            session.setPassword(pass);\n        }\n\n        // connect\n        session.connect()\n\n        // execute command.\n        LMDebugPrint(\"\\tExecuting command: ${input_command}\")\n        channel = session.openChannel(\"exec\")\n        channel.setCommand(input_command)\n\n        // collect command output.\n        LMDebugPrint(\"\\tRetrieving output...\\n\")\n        def commandOutput = channel.getInputStream()\n        channel.connect()\n\n        def output = commandOutput.text;\n        if (output == \"\") {\n            LMDebugPrint(\"\\tEmpty results\\n\")\n        }\n\n        // disconnect\n        channel.disconnect()\n\n        return output\n    }\n    // ensure we disconnect the session.\n    finally {\n        session.disconnect()\n    }\n}"
+    },
+    "discoveryInterval": "60m",
+    "enabled": true
+  },
+  "collectionAttrs": {
+    "type": "groovy",
+    "content": "/*******************************************************************************\n *  © 2007-2021 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\n\nimport com.jcraft.jsch.JSch\nimport com.santaba.agent.util.Settings\nimport java.util.Date\nimport groovy.time.TimeCategory\nimport groovy.time.TimeDuration\n\nhost = hostProps.get(\"system.hostname\")\nuser = hostProps.get(\"ssh.user\")\npass = hostProps.get(\"ssh.pass\")\nport = hostProps.get(\"ssh.port\")?.toInteger() ?: 22\ncert = hostProps.get(\"ssh.cert\") ?: '~/.ssh/id_rsa'\ntimeout = 15000 // timeout in milliseconds\n\ndef azureHost = hostProps.get(\"system.azure.privateIpAddress\")\nif (azureHost && hostProps.get(\"auto.network.resolves\") == \"false\") host = azureHost\n\n// To run in debug mode, set to true\ndebug = false\n\n// Commands to run\ndef commands_list = ['`which df` -P', '`which df` -i']\n\n// Establish expected pattern of output\n// (?m) - Allow for multiline matches for inode output line split\ndef pattern = ~/(?m)\\s?(\\S+)\\n?\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\-|\\d+)%\\s+(.*)/\n\n// Types of filesystems to ignore\ndef filtered_filesystems = [\"none\", \"udev\", \"tmpfs\", \"devtmpfs\"]\n\ncommands_list.each { command ->\n    def command_output = getCommandOutput(command)\n    LMDebugPrint(\"Raw output:\\n${command_output}\\n----------\")\n\n    // Perform multiline match on full output \n    def matcher = pattern.matcher(command_output);\n\n    // Process each match to write data\n    matcher.each { match ->\n        def filesystem = match[1]\n        def filesystemMount = match[6]\n\n        // Filter out filesystems that should be excluded\n        if (!filtered_filesystems.contains(filesystem) && !filesystem.contains(\"dev/loop\")) {\n            def wildvalue = filesystem.replaceAll(/[:|\\\\|\\s|=]+/, \"_\")\n            \n            if (filesystemMount.contains('backups')){\n                def date_latest_dir = (\"find ${filesystemMount} -type d -print0 | xargs -0 stat --format '%Y:%y' | sort -nr | cut -d: -f2- | head -n 1\");\n                date_latest_com = getCommandOutput (date_latest_dir);\n                Date start = Date.parse(\"yyyy-MM-dd HH:mm:ss\", date_latest_com)\n                Date stop = new Date() // current time\n                TimeDuration tds = TimeCategory.minus(stop, start)\n                date_latest_outputs = Math.abs(tds.hours)\n                //date_latest_output = date_latest_output.toLong() / 3600\n            } else {\n                date_latest_outputs = null;\n            }\n                        \n            if (command.contains('-P')) {\n                println wildvalue + \".modified_dirs=\" + date_latest_outputs;\n            } else if (command.contains('-i')) {\n                println wildvalue + \".modified_dirs=\" + date_latest_outputs;\n            }\n        }\n    }\n}\n\nreturn 0\n\n/**\n * Helper function to print out debug messages for troubleshooting purposes.\n * @param message\n * @param debug\n */\ndef LMDebugPrint(message) {\n    if (debug) {\n        println(message.toString())\n    }\n}\n\n\n/**\n * Helper function for SSH connection and command passing\n * uses globally set host props:\n *   host, user, pass, port, cert\n * @param input_command\n */\ndef getCommandOutput(String input_command) {\n    try {\n        // instantiate JSCH object.\n        jsch = new JSch()\n\n        LMDebugPrint(\"***** Attempting SSH Connection *****\")\n        LMDebugPrint(\"\\tUser: ${user}\\n\\tConnecting over port ${port}\")\n\n        // do we have an user and no pass ?\n        if (user && !pass) {\n            LMDebugPrint(\"\\tUser set, but no password. Adding cert for connection.\")\n            // Yes, so lets try connecting via cert.\n            jsch.addIdentity(cert)\n        }\n\n        // create session.\n        session = jsch.getSession(user, host, port)\n\n        // given we are running non-interactively, we will automatically accept new host keys.\n        session.setConfig(\"StrictHostKeyChecking\", \"no\");\n        String authMethod = Settings.getSetting(Settings.SSH_PREFEREDAUTHENTICATION, Settings.DEFAULT_SSH_PREFEREDAUTHENTICATION);\n        session.setConfig(\"PreferredAuthentications\", authMethod);\n\n        // set session timeout, in milliseconds.\n        session.setTimeout(timeout)\n\n        // is host configured with a user & password?\n        if (pass) {\n            LMDebugPrint(\"\\tConnecting with password set in device properties\")\n            // set password.\n            session.setPassword(pass);\n        }\n\n        // connect\n        session.connect()\n\n        // execute command.\n        LMDebugPrint(\"\\tExecuting command: ${input_command}\")\n        channel = session.openChannel(\"exec\")\n        channel.setCommand(input_command)\n\n        // collect command output.\n        LMDebugPrint(\"\\tRetrieving output...\\n\")\n        def commandOutput = channel.getInputStream()\n        channel.connect()\n\n        def output = commandOutput.text;\n        if (output == \"\") {\n            LMDebugPrint(\"\\tEmpty results\\n\")\n        }\n\n        // disconnect\n        channel.disconnect()\n\n        return output\n    }\n    // ensure we disconnect the session.\n    finally {\n        session.disconnect()\n    }\n}"
+  },
+  "type": 0,
+  "technicalNotes": "Requires property source addCategory_Linux_SSH\n\nUses the \"df\" command to get data about mounted filesystem usage.\n\n\"df\" takes the filesystem reservation (usually 5%) into account for you.\n\n- Support: https://www.logicmonitor.com/support/monitoring/os-virtualization/linux-via-ssh-monitoring",
+  "useWildValueAsUniqueIdentifier": false,
+  "version": 1693915790,
+  "registryMetadata": {
+    "currentUuid": "dWONRGGrTn6t0_ii8OInSg",
+    "originalUuid": "dWONRGGrTn6t0_ii8OInSg",
+    "locatorId": "",
+    "authorCompanyUuid": "82eee13d-ea07-4940-9823-f96d2bf796e2",
+    "registryVersion": "1.0.0",
+    "checksum": "f644fce3a391361fb37775b24f62caac",
+    "namespace": "",
+    "registryId": ""
+  },
+  "multiInstance": true,
+  "graphs": [
+    {
+      "datapoints": [],
+      "min": 0,
+      "timeScale": "1week",
+      "max": 500,
+      "name": "Filesystem Modification",
+      "verticalLabel": "hrs",
+      "displayPriority": 1,
+      "scale1024": false,
+      "title": "Filesystem Modification",
+      "rigid": false,
+      "lines": []
+    }
+  ],
+  "name": "Linux_SSH_Filesystems_DirMod_Check",
+  "collectionInterval": "30m",
+  "dataSourceType": 1,
+  "group": "Backup",
+  "overviewGraphs": [
+    {
+      "datapoints": [],
+      "min": 0,
+      "timeScale": "1day",
+      "max": 100,
+      "name": "Top 10 Filesystems by Hours since Modification",
+      "verticalLabel": "%",
+      "displayPriority": 1,
+      "aggregated": false,
+      "scale1024": false,
+      "title": "Top 10 Filesystems by Hours since Modification",
+      "rigid": false,
+      "lines": []
+    }
+  ]
+}
